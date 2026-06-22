@@ -1,0 +1,132 @@
+<div>Teachable Machine Image Model</div>
+<div id="subject"></div>
+<div id="youtube-container" style="text-align:center; margin:20px 0;">
+    <iframe
+        id="youtube-player"
+        width="560"
+        height="315"
+        src=""
+        frameborder="0"
+        allow="autoplay; encrypted-media"
+        allowfullscreen>
+    </iframe>
+</div>
+<button type="button" onclick="init()">Start</button>
+<div id="webcam-container"></div>
+<div id="label-container"></div>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+<style>
+    #subject{
+        text-align: center;
+        font-size: 50px;
+        font-weight: bold;
+        margin-bottom: 20px;
+    }
+</style>
+<script type="text/javascript">
+    const URL = "https://teachablemachine.withgoogle.com/models/nrvI8pEXU/";
+
+    const videos = {
+    "math or science": "https://www.youtube.com/embed/QTxDGbq0_pY",
+    "Korean or English": "https://www.youtube.com/embed/gZqkSSqBa-8",
+    "Social Studies or History": "https://www.youtube.com/embed/tlcEurH9Cpg?si=cQMaSVcvPEjt5YKi",
+    "reading": "https://www.youtube.com/embed/2wYtJwDkKIk?si=Yx8vq_HghSdYB4Yd"
+};
+
+    let model, webcam, labelContainer, maxPredictions;
+    let pendingSubject = "";
+    let pendingStartTime = 0;
+    let confirmedSubject = "";
+
+    // Load the image model and setup the webcam
+    async function init() {
+        const modelURL = URL + "model.json";
+        const metadataURL = URL + "metadata.json";
+        model = await tmImage.load(modelURL, metadataURL);
+        maxPredictions = model.getTotalClasses();
+
+        
+        const flip = true; 
+        webcam = new tmImage.Webcam(200, 200, flip); 
+        await webcam.setup(); 
+        await webcam.play();
+        window.requestAnimationFrame(loop);
+
+        // append elements to the DOM
+        document.getElementById("webcam-container").appendChild(webcam.canvas);
+        labelContainer = document.getElementById("label-container");
+        for (let i = 0; i < maxPredictions; i++) { // and class labels
+            labelContainer.appendChild(document.createElement("div"));
+        }
+    }
+
+    async function loop() {
+        webcam.update(); // update the webcam frame
+        await predict();
+        window.requestAnimationFrame(loop);
+    }
+
+    async function predict() {
+    const prediction = await model.predict(webcam.canvas);
+    let highest = prediction[0];
+
+    for (let i = 0; i < maxPredictions; i++) {
+
+        if (prediction[i].probability > highest.probability) {
+            highest = prediction[i];
+        }
+
+        const classPrediction =
+            prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+
+        labelContainer.childNodes[i].innerHTML = classPrediction;
+    }
+
+    // 상단 중앙에 현재 공부 과목 표시
+const now = Date.now();
+
+// 신뢰도 0.8 이상일 때만 후보로 인정
+if (highest.className !== "none" && highest.probability >= 0.8) {
+    // 새로운 과목이 감지됨
+    if (pendingSubject !== highest.className) {
+        pendingSubject = highest.className;
+        pendingStartTime = now;
+    }
+    else {
+        if (
+            now - pendingStartTime >= 2000 &&
+            confirmedSubject !== pendingSubject
+        ) {
+            confirmedSubject = pendingSubject;
+            document.getElementById("subject").innerHTML =
+                "📚 현재 공부 과목 : " +
+                confirmedSubject;
+            const player =
+                document.getElementById("youtube-player");
+            if (videos[confirmedSubject]) {
+                player.src =
+                    videos[confirmedSubject];
+            }
+            if (confirmedSubject === "math or science") {
+                document.body.style.backgroundColor = "#CFEFFF";
+            }
+            else if (confirmedSubject === "Korean or English") {
+                document.body.style.backgroundColor = "#FFFACD";
+            }
+            else if (confirmedSubject === "Social Studies or History") {
+                document.body.style.backgroundColor = "#CCFFCC";
+            }
+            else if (confirmedSubject === "reading" ) {
+                document.body.style.backgroundColor = "#E8D5B7";
+            }
+        }
+    }
+}
+else {
+
+    // 0.8 미만이면 카운트 초기화
+    pendingSubject = "";
+}
+}
+</script>
